@@ -38,5 +38,3 @@ and stringOfNode = ({value, parseData}) =>
 type nodeOrFail =
   | Node(node)
   | Fail(string);
-
-type parser = string => nodeOrFail;
