@@ -3,20 +3,19 @@ open Node;
 let regex = (~group=0, re, s) => {
   let resultOption = Js_re.exec(s, Js_re.fromString("^" ++ Js_re.source(re)));
   switch resultOption {
-  | None => Fail("Match not found -- exec failed.")
+  | None => Fail_("Match not found -- exec failed.")
   | Some(result) =>
-    Js.log(Js_re.captures(result));
+    /* Js.log(Js_re.captures(result)); */
     switch (Belt_Array.get(result |> Js_re.captures, group)) {
-    | None => Fail("Match not found -- captures array is empty.")
+    | None => Fail_("Match not found -- captures array is empty.")
     | Some(nullableString) =>
       switch (nullableString |> Js.toOption) {
-      | None => Fail("Match not found -- captures[0] is null.")
+      | None => Fail_(Format.sprintf("Match not found -- captures[%d] is null.", group))
       | Some(match) =>
-        Node({
-          value: Str(match),
-          parseData:
-            makeParseData(~match, ~rest=Js_string.sliceToEnd(~from=Js_string.length(match), s), ())
-        })
+        Success(
+          Str(match),
+          makeParseData(~match, ~rest=Js_string.sliceToEnd(~from=Js_string.length(match), s), ())
+        )
       }
     }
   }
@@ -36,11 +35,8 @@ let letters = regex([%re "/[a-zA-Z]+/"]);
 
 let quotedString = regex(~group=1, [%re "/\"([^\"]*)\"/"]);
 
-let intMapper = (node) => {
-  let value =
-    switch node.value {
-    | Str(n) => Int(int_of_string(n))
-    | _ as v => v
-    };
-  {...node, value}
-};
+let intMapper = (value) =>
+  switch value {
+  | Str(n) => Int(int_of_string(n))
+  | _ as v => v
+  };

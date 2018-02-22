@@ -15,12 +15,8 @@ type value =
   | Int(int)
   | Flt(float)
   | Nil
-  | Lst(list(node))
-  | Map(list((string, node)))
-and node = {
-  value,
-  parseData
-};
+  | Lst(list(value))
+  | Map(list((string, value)));
 
 let rec stringOfValue = (value) =>
   switch value {
@@ -28,12 +24,25 @@ let rec stringOfValue = (value) =>
   | Int(n) => string_of_int(n)
   | Flt(x) => string_of_float(x)
   | Nil => "null"
-  | Lst(nodes) =>
-    "[" ++ (nodes |> List.map(stringOfNode) |> Array.of_list |> Js_array.joinWith("\n")) ++ "]"
+  | Lst(values) =>
+    "[" ++ (values |> List.map(stringOfValue) |> Array.of_list |> Js_array.joinWith(", ")) ++ "]"
   | Map(_) => Js.Exn.raiseError("I haven't gotten to that yet.")
-  }
-and stringOfNode = ({value, parseData}) =>
-  "(" ++ stringOfValue(value) ++ ", " ++ stringOfParseData(parseData) ++ ")";
+  };
+
+type result =
+  | Success(value, parseData)
+  | Fail_(string);
+
+type node = {
+  name: option(string),
+  value
+};
+
+let stringOfNode = ({name, value}) =>
+  switch name {
+  | None => Format.sprintf("%s", stringOfValue(value))
+  | Some(name) => Format.sprintf("%s, %s", name, stringOfValue(value))
+  };
 
 type nodeOrFail =
   | Node(node)
