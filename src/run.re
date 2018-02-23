@@ -1,14 +1,14 @@
 let p = Regex.letters;
 
-let q = Combs.map(Regex.intMapper, Regex.digits);
+let q = Combs.map(~f=Regex.intMapper, Regex.digits);
 
-let pq = Combs.seq([q, p, q, p]);
+let qpqp = Combs.seq([q, p, q, p]);
 
-let n = pq("456ABCdef123abc***");
+let res = qpqp("456ABCdef123abc***");
 
-/* let n = Regex.quotedString({|"The quick brown fox, etc...",|}); */
+/* let res = Combs.oneOrMore(Regex.digit, "123456abc"); */
 let s =
-  switch n {
+  switch res {
   | Fail_(message) => message
   | Success(value, parseData) =>
     Format.sprintf("Value: %s, %s", Node.stringOfValue(value), Node.stringOfParseData(parseData))

@@ -8,6 +8,9 @@ let makeParseData = (~parserName=?, ~match, ~rest, ()) => {match, rest, parserNa
 
 let stringOfParseData = ({match, rest}) => Format.sprintf("Match: %s, Rest: %s", match, rest);
 
+let stringOfParseDataList = (parseDataList) =>
+  parseDataList |> List.map(stringOfParseData) |> Array.of_list |> Js_array.joinWith("\n");
+
 let logParseData = (parseData) => Js.log(parseData |> stringOfParseData);
 
 type value =
@@ -24,14 +27,22 @@ let rec stringOfValue = (value) =>
   | Int(n) => string_of_int(n)
   | Flt(x) => string_of_float(x)
   | Nil => "null"
-  | Lst(values) =>
-    "[" ++ (values |> List.map(stringOfValue) |> Array.of_list |> Js_array.joinWith(", ")) ++ "]"
+  | Lst(values) => stringOfValueList(values)
   | Map(_) => Js.Exn.raiseError("I haven't gotten to that yet.")
-  };
+  }
+and stringOfValueList = (values) =>
+  "[" ++ (values |> List.map(stringOfValue) |> Array.of_list |> Js_array.joinWith(", ")) ++ "]";
 
 type result =
   | Success(value, parseData)
   | Fail_(string);
+
+let stringOfResult = (result) =>
+  switch result {
+  | Success(value, parseData) =>
+    Format.sprintf("%s\n%s", stringOfValue(value), stringOfParseData(parseData))
+  | Fail_(message) => message
+  };
 
 type node = {
   name: option(string),
