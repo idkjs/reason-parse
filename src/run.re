@@ -9,7 +9,7 @@ let res = qpqp("456ABCdef123abc***");
 /* let res = Combs.oneOrMore(Regex.digit, "123456abc"); */
 let s =
   switch res {
-  | Fail_(message) => message
+  | Fail(message) => message
   | Success(value, parseData) =>
     Format.sprintf("Value: %s, %s", Node.stringOfValue(value), Node.stringOfParseData(parseData))
   };

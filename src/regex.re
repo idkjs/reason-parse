@@ -3,14 +3,14 @@ open Node;
 let regex = (~group=0, re, s) => {
   let resultOption = Js_re.exec(s, Js_re.fromString("^" ++ Js_re.source(re)));
   switch resultOption {
-  | None => Fail_("Match not found -- exec failed.")
+  | None => Fail("Match not found -- exec failed.")
   | Some(result) =>
     /* Js.log(Js_re.captures(result)); */
     switch (Belt_Array.get(result |> Js_re.captures, group)) {
-    | None => Fail_("Match not found -- captures array is empty.")
+    | None => Fail("Match not found -- captures array is empty.")
     | Some(nullableString) =>
       switch (nullableString |> Js.toOption) {
-      | None => Fail_(Format.sprintf("Match not found -- captures[%d] is null.", group))
+      | None => Fail(Format.sprintf("Match not found -- captures[%d] is null.", group))
       | Some(match) =>
         Success(
           Str(match),

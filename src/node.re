@@ -11,8 +11,6 @@ let stringOfParseData = ({match, rest}) => Format.sprintf("Match: %s, Rest: %s",
 let stringOfParseDataList = (parseDataList) =>
   parseDataList |> List.map(stringOfParseData) |> Array.of_list |> Js_array.joinWith("\n");
 
-let logParseData = (parseData) => Js.log(parseData |> stringOfParseData);
-
 type value =
   | Str(string)
   | Int(int)
@@ -35,26 +33,11 @@ and stringOfValueList = (values) =>
 
 type result =
   | Success(value, parseData)
-  | Fail_(string);
+  | Fail(string);
 
 let stringOfResult = (result) =>
   switch result {
   | Success(value, parseData) =>
     Format.sprintf("%s\n%s", stringOfValue(value), stringOfParseData(parseData))
-  | Fail_(message) => message
+  | Fail(message) => message
   };
-
-type node = {
-  name: option(string),
-  value
-};
-
-let stringOfNode = ({name, value}) =>
-  switch name {
-  | None => Format.sprintf("%s", stringOfValue(value))
-  | Some(name) => Format.sprintf("%s, %s", name, stringOfValue(value))
-  };
-
-type nodeOrFail =
-  | Node(node)
-  | Fail(string);

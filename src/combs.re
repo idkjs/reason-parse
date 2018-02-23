@@ -2,23 +2,23 @@ open Node;
 
 let map = (~f=(x) => x, ~g=(x) => x, p, s) =>
   switch (p(s)) {
-  | Fail_(_) as x => x
+  | Fail(_) as x => x
   | Success(value, parseData) => Success(f(value), g(parseData))
   };
 
 let rec alt = (parsers, s) =>
   switch parsers {
-  | [] => Fail_("Alt failed. (Did you pass it an empty list?)")
+  | [] => Fail("Alt failed. (Did you pass it an empty list?)")
   | [p, ...ps] =>
     switch (p(s)) {
-    | Fail_(_) => alt(ps, s)
+    | Fail(_) => alt(ps, s)
     | Success(_) as s => s
     }
   };
 
 let success = (value, s) => Success(value, makeParseData(~match="", ~rest=s, ()));
 
-let fail = (message, _: string) => Fail_(message);
+let fail = (message, _: string) => Fail(message);
 
 /* let extractList = (value) =>
    switch value {
@@ -47,10 +47,10 @@ let flatten = (value) =>
    | [] => success(Lst([]), s)
    | [p, ...ps] =>
      switch (p(s)) {
-     | Fail_(_) as f => f
+     | Fail(_) as f => f
      | Success(value, parseData) =>
        switch (seq(ps, parseData.rest)) {
-       | Fail_(_) as f => f
+       | Fail(_) as f => f
        | Success(moreValues, moreParseData) =>
          Success(
            flatten(Lst([value, moreValues])),
@@ -64,7 +64,7 @@ let rec preSeq = (parsers, s) =>
   | [] => ([], [])
   | [p, ...ps] =>
     switch (p(s)) {
-    | Fail_(_) => ([], [])
+    | Fail(_) => ([], [])
     | Success(value, parseData) =>
       let (moreValues, moreParseData) = preSeq(ps, parseData.rest);
       ([value, ...moreValues], [parseData, ...moreParseData])
@@ -75,7 +75,7 @@ let seq = (parsers, s) => {
   let (valueList, parseDataList) = preSeq(parsers, s);
   let (m, n) = (List.length(valueList), List.length(parsers));
   if (m < n) {
-    Fail_(Format.sprintf("Parser %d of %d failed.", m + 1, n))
+    Fail(Format.sprintf("Parser %d of %d failed.", m + 1, n))
   } else {
     let match =
       parseDataList |> List.map(({match}) => match) |> Array.of_list |> Js_array.joinWith("");
@@ -86,16 +86,16 @@ let seq = (parsers, s) => {
 
 let maybe = (p, s) =>
   switch (p(s)) {
-  | Fail_(_) => success(Nil, s)
+  | Fail(_) => success(Nil, s)
   | Success(_) as s => s
   };
 
 let rec zeroOrMore = (p, s) =>
   switch (p(s)) {
-  | Fail_(_) => success(Lst([]), s)
+  | Fail(_) => success(Lst([]), s)
   | Success(value, parseData) =>
     switch (zeroOrMore(p, parseData.rest)) {
-    | Fail_(_) => Js.Exn.raiseError("zeroOrMore should never fail!")
+    | Fail(_) => Js.Exn.raiseError("zeroOrMore should never fail!")
     | Success(moreValues, moreParseData) =>
       Success(
         flatten(Lst([value, moreValues])),
