@@ -1,56 +1,74 @@
 open Node;
 
-exception Break(string, result);
-
-let reduceStream = (reducer, init, stream) => {
-  let accRef = ref(init);
+let reduce = (~break=(_, _, _) => false, reducer, init, stream) => {
+  let acc = ref(init);
   try {
-    stream
-    |> Stream.iter(
-         (x) => {
-           accRef := reducer(accRef^, x, stream |> Stream.count);
-           ()
-         }
-       );
-    accRef^
+    let x = ref(stream |> Stream.next);
+    while (! break(acc^, x^, stream |> Stream.count)) {
+      acc := reducer(acc^, x^, stream |> Stream.count);
+      x := stream |> Stream.next
+    };
+    acc^
   } {
-  | Break(string, result) => (string, result)
+  | Stream.Failure => acc^
   }
 };
 
-let altReducer = ((string, result), parser, _) =>
-  switch (parser(string)) {
-  | Success(_) as success => Break(string, success) |> raise
-  | Fail(_) => (string, result)
-  };
-
 let alt = (ps, s) =>
-  reduceStream(altReducer, (s, Fail("All the parsers failed.")), ps |> Stream.of_list) |> snd;
+  reduce(
+    ~break=
+      (acc, _, _) =>
+        switch acc {
+        | Success(_) => true
+        | Fail(_) => false
+        },
+    (_, parser, _) => parser(s),
+    Fail("All the parsers failed."),
+    ps |> Stream.of_list
+  );
 
-let extractList = (value) =>
-  switch value {
-  | Lst(values) => values
-  | _ => Js.Exn.raiseError("Don't pass a non-list to extractList!")
-  };
-
-let seqReducer = (nParsers, (string, result), parser, count) =>
-  switch (result, parser(string)) {
-  | (Fail(_), _) => Break(string, Fail("You shouldn't be here!")) |> raise
-  | (_, Fail(message)) =>
-    Break(string, Fail(Format.sprintf("Parser %d of %d failed: %s", count, nParsers, message)))
-    |> raise
-  | (Success(prevValue, prevParseData), Success(value, parseData)) => (
-      parseData.rest,
-      Success(
-        Lst([value, ...extractList(prevValue)]),
-        {...parseData, match: prevParseData.match ++ parseData.match}
-      )
+let seqReducer = ((valueList, valueListLength, prevParseData), parser, _) =>
+  switch (parser(prevParseData.rest)) {
+  | Fail(_) => (valueList, valueListLength, prevParseData)
+  | Success(value, parseData) => (
+      [value, ...valueList],
+      valueListLength + 1,
+      {...parseData, match: prevParseData.match ++ parseData.match}
     )
   };
 
-let seq = (ps, s) =>
-  reduceStream(seqReducer(List.length(ps)), (s, Combs.success(Lst([]), s)), ps |> Stream.of_list)
-  |> snd;
+let seq = (ps, rest) => {
+  let stream = ps |> Stream.of_list;
+  let (valueList, valueListLength, parseData) =
+    reduce(
+      ~break=((_, valueListLength, _), _, count) => valueListLength !== count - 1,
+      seqReducer,
+      ([], 0, {parserName: None, match: "", rest}),
+      stream
+    );
+  let count = Stream.count(stream);
+  if (valueListLength === count) {
+    Success(Lst(valueList |> List.rev), parseData)
+  } else {
+    let message = Format.sprintf("Parser %d of %d failed.", valueListLength + 1, count);
+    Fail(message)
+  }
+};
+
+let zeroOrMore = (p, rest) => {
+  let stream = Stream.from((_) => Some(p));
+  let reducer = ((valueList, prevParseData), _, _) =>
+    switch (p(prevParseData.rest)) {
+    | Success(value, parseData) => (
+        [value, ...valueList],
+        {...parseData, match: prevParseData.match ++ parseData.match}
+      )
+    | Fail(_) => raise(Stream.Failure)
+    };
+  let (valueList, parseData) =
+    reduce(~break=(_, _, _) => false, reducer, ([], {parserName: None, match: "", rest}), stream);
+  Success(Lst(valueList |> List.rev), parseData)
+};
 
 let p = Regex.letters;
 
@@ -58,6 +76,10 @@ let q = Combs.map(~f=Regex.intMapper, Regex.digits);
 
 let r = Regex.maybeWhitespace;
 
-let pqr = seq([p, q, r, q]);
+let pqr = seq([p, q, r]);
 
-print_endline("efg123   436***" |> pqr |> Node.stringOfResult);
+let ltrs = zeroOrMore(Regex.letter);
+
+let result = pqr("efg12!3   436***");
+
+print_endline(ltrs("abcdef123456") |> stringOfResult);
