@@ -23,10 +23,12 @@ let print_results = (results) =>
 
 print_results(results);
 
-print_endline(results |> List.split |> snd |> Pstream.mergeParseData |> Node.stringOfParseData);
+print_endline(
+  results |> List.split |> snd |> Pstream.mergeParseData("abc123pqr789") |> Node.stringOfParseData
+);
 
-print_endline(Pstream.seqqq([p, q, p, q], "abc123pqr789xyz") |> Node.stringOfResult);
+print_endline(Pstream.seq([p, q, p, q], "abc123pqr789xyz") |> Node.stringOfResult);
 
-let atoj = Pstream.atLeast(10, Regex.letter, "abcdefghijklmnopqrstuvwxyz12345");
+let atoj = Pstream.times(~atLeast=3, ~atMost=4, Regex.letter, "ab5cdefghijklmnopqrstuvwxyz12345");
 
 print_endline(atoj |> Node.stringOfResult);
