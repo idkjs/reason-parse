@@ -29,6 +29,11 @@ print_endline(
 
 print_endline(Pstream.seq([p, q, p, q], "abc123pqr789xyz") |> Node.stringOfResult);
 
-let atoj = Pstream.times(~atLeast=3, ~atMost=4, Regex.letter, "ab5cdefghijklmnopqrstuvwxyz12345");
+let ds = Regex.digits;
+
+let ls = Regex.letters;
+
+let atoj =
+  Pstream.sepBy(~separator=Regex.digit, Regex.letter, "a1b2c3d4efghijklmnopqrstuvwxyz4567pqrs");
 
 print_endline(atoj |> Node.stringOfResult);

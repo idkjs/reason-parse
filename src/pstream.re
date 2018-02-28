@@ -57,6 +57,15 @@ let rec mergeParseData = (~parserName=None, initialString, list) =>
   | [x, ...y] => {...x, match: mergeParseData(~parserName, initialString, y).match ++ x.match}
   };
 
+let stream = (stream, string) =>
+  switch (tillFailure(stream, string)) {
+  | (list, _, EndOfStream(_)) =>
+    let (values, parseData) = List.split(list);
+    Success(Lst(values |> List.rev), mergeParseData(string, parseData))
+  | (_, _, ParseFailure(count, message)) =>
+    Fail(Format.sprintf("Parser failure at stream index %d: %s", count, message))
+  };
+
 let seq = (ps, s) =>
   switch (tillFailure(ps |> Stream.of_list, s)) {
   | (list, _, EndOfStream(_)) =>
@@ -66,41 +75,31 @@ let seq = (ps, s) =>
     Fail(Format.sprintf("Parser %d of %d failed: %s", count, List.length(ps), message))
   };
 
-let atMost = (n, parser, string) => {
-  let stream = Stream.from((k) => k < n ? Some(parser) : None);
-  let (list, _, _) = tillFailure(stream, string);
-  let (values, parseData) = List.split(list);
-  Success(Lst(values |> List.rev), mergeParseData(string, parseData))
-};
-
-let atLeast = (n, parser, string) => {
-  let stream = Stream.from((_) => Some(parser));
-  switch (tillFailure(stream, string)) {
-  | (list, _, ParseFailure(count, _)) =>
-    if (count >= n) {
-      let (values, parseData) = List.split(list);
-      Success(Lst(values |> List.rev), mergeParseData(string, parseData))
-    } else {
-      Fail(Format.sprintf("Only %d instances matched.", count))
+let keepNth = (n, ps, s) =>
+  switch (seq(ps, s)) {
+  | Success(Lst(list), parseData) =>
+    switch (Belt_List.get(list, n)) {
+    | Some(value) => Success(value, parseData)
+    | None =>
+      Fail(
+        Format.sprintf(
+          "Index out of range: 0-based index = %d, length of parser sequence = %d",
+          n,
+          ps |> List.length
+        )
+      )
     }
-  | (_, _, EndOfStream(_)) => assert false /* infinite stream */
-  }
-};
+  | Success(_, _) => assert false
+  | Fail(f) => Fail(f)
+  };
 
-let _times = (~atLeast=0, ~atMost=?, parser, string) => {
-  let stream =
-    Stream.from(
-      (n) =>
-        switch atMost {
-        | Some(x) =>
-          if (n < x) {
-            Some(parser)
-          } else {
-            None
-          }
-        | None => Some(parser)
-        }
-    );
+let keepFirst = keepNth(0);
+
+let keepLast = (ps) => keepNth(List.length(ps) - 1, ps);
+
+let between = (p, q, r) => keepNth(1, [p, q, r]);
+
+let successes = (~atLeast=0, stream, string) =>
   switch (tillFailure(stream, string)) {
   | (list, _, EndOfStream(count))
   | (list, _, ParseFailure(count, _)) =>
@@ -117,13 +116,42 @@ let _times = (~atLeast=0, ~atMost=?, parser, string) => {
         )
       )
     }
-  }
-};
+  };
+
+let _times = (~atLeast=0, ~atMost=?, parser) =>
+  successes(
+    ~atLeast,
+    Stream.from(
+      (n) =>
+        switch atMost {
+        | Some(x) =>
+          if (n < x) {
+            Some(parser)
+          } else {
+            None
+          }
+        | None => Some(parser)
+        }
+    )
+  );
 
 let zeroOrMore = (parser) => _times(~atLeast=0, parser);
+
+let oneOrMore = (parser) => _times(~atLeast=1, parser);
 
 let atLeast = (atLeast, parser) => _times(~atLeast, parser);
 
 let atMost = (atMost) => _times(~atLeast=0, ~atMost);
 
-let times = (atLeast, atMost) => _times(~atLeast, ~atMost);
+let atLeastAtMost = (atLeast, atMost) => _times(~atLeast, ~atMost);
+
+let nTimes = (n) => atLeastAtMost(n, n);
+
+let sepBy = (~separator, parser, string) => {
+  let stream = Stream.from((n) => n === 0 ? Some(parser) : Some(keepLast([separator, parser])));
+  let result = successes(~atLeast=0, stream, string);
+  switch result {
+  | Success(_) as success => success
+  | Fail(_) as fail => fail
+  }
+};
