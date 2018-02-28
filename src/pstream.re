@@ -70,15 +70,75 @@ let oneOrMore = (p, s) => {
     )
 };
 
-let tillParseFailureOrStreamFailure = (p) => 0;
+exception ParseFailureExn(list((value, parseData)), string, string);
 
-let tillParseSuccessorStreamFailure = (p) => 0;
+type termination =
+  | EndOfStream(int)
+  | ParseFailure(int, string);
 
-let atMost = (n, p) => {
-  let stream = Stream.from((k) => k < n ? Some(p) : None);
-  ()
+let tillFailure = (stream, string) => {
+  let f = ((list, rest), parser) =>
+    switch (parser(rest)) {
+    | Success(value, parseData) => ([(value, parseData), ...list], parseData.rest)
+    | Fail(message) => raise(ParseFailureExn(list, rest, message))
+    };
+  try {
+    let (list, rest) = red(f, ([], string), stream);
+    (list, rest, EndOfStream(stream |> Stream.count))
+  } {
+  | ParseFailureExn(list, rest, message) => (
+      list,
+      rest,
+      ParseFailure(stream |> Stream.count, message)
+    )
+  }
 };
 
+let rec mergeParseData = (list) =>
+  switch list {
+  | [] => {match: "", rest: "", parserName: None}
+  | [x, ...y] => {...x, match: mergeParseData(y).match ++ x.match}
+  };
+
+let seqqq = (ps, s) =>
+  switch (tillFailure(ps |> Stream.of_list, s)) {
+  | (list, _, EndOfStream(_)) =>
+    let (values, parseData) = List.split(list);
+    Success(Lst(values |> List.rev), mergeParseData(parseData))
+  | (_, _, ParseFailure(count, message)) =>
+    Fail(Format.sprintf("Parser %d of %d failed: %s", count, List.length(ps), message))
+  };
+
+let atMost = (n, parser, string) => {
+  let stream = Stream.from((k) => k < n ? Some(parser) : None);
+  switch (tillFailure(stream, string)) {
+  | (list, _, _) =>
+    let (values, parseData) = List.split(list);
+    Success(Lst(values |> List.rev), mergeParseData(parseData))
+  }
+};
+
+let atLeast = (n, parser, string) => {
+  let stream = Stream.from((_) => Some(parser));
+  switch (tillFailure(stream, string)) {
+  | (list, _, ParseFailure(count, _)) =>
+    if (count >= n) {
+      let (values, parseData) = List.split(list);
+      Success(Lst(values |> List.rev), mergeParseData(parseData))
+    } else {
+      Fail(Format.sprintf("Only %d instances matched.", count))
+    }
+  | (_, _, EndOfStream(_)) => assert false
+  }
+};
+
+/* let stream = Stream.from(_ => parser); */
+/* switch (tillFailure(stream, string)) {
+   | (list, _, ParseFailure(count)) => 0 */
+/* if (count >= n) {
+     let (values, parseData) = List.split(list);
+     Success(Lst(values |> List.rev), mergeParseData(parseData))
+   } else {Fail(Format.sprintf("Only %d instances matched.", count))} */
 let reduce = (~break=(_, _, _) => false, reducer, init, stream) => {
   let acc = ref(init);
   try {
@@ -153,17 +213,3 @@ let zeroOrMore = (p, rest) => {
     reduce(~break=(_, _, _) => false, reducer, ([], {parserName: None, match: "", rest}), stream);
   Success(Lst(valueList |> List.rev), parseData)
 };
-
-let p = Regex.letters;
-
-let q = Combs.map(~f=Regex.intMapper, Regex.digits);
-
-let r = Regex.maybeWhitespace;
-
-let pqr = seq([p, q, r]);
-
-let ltrs = zeroOrMore(Regex.letter);
-
-let result = pqr("efg12!3   436***");
-
-print_endline(ltrs("abcdef123456") |> stringOfResult);

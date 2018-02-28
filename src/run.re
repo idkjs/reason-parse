@@ -1,17 +1,32 @@
+let tillFailure = Pstream.tillFailure;
+
 let p = Regex.letters;
 
-let q = Combs.map(~f=Regex.intMapper, Regex.digits);
+let q = Regex.digits;
 
-let qpqp = Combs.seq([q, p, q, p]);
+let r = Regex.quotedString;
 
-let res = qpqp("456ABCdef123abc***");
+let s = {|abc123\"abc123\"|};
 
-/* let res = Combs.oneOrMore(Regex.digit, "123456abc"); */
-let s =
-  switch res {
-  | Fail(message) => message
-  | Success(value, parseData) =>
-    Format.sprintf("Value: %s, %s", Node.stringOfValue(value), Node.stringOfParseData(parseData))
-  };
+let t = tillFailure([p, q, p, q] |> Stream.of_list);
 
-print_endline(s);
+let (results, _, _) = t("abc123pqr789");
+
+let print_results = (results) =>
+  results
+  |> List.iter(
+       ((a, b)) => {
+         print_endline(a |> Node.stringOfValue);
+         print_endline(b |> Node.stringOfParseData)
+       }
+     );
+
+print_results(results);
+
+print_endline(results |> List.split |> snd |> Pstream.mergeParseData |> Node.stringOfParseData);
+
+print_endline(Pstream.seqqq([p, q, p, q], "abc123pqr789xyz") |> Node.stringOfResult);
+
+let atoj = Pstream.atLeast(10, Regex.letter, "abcdefghijklmnopqrstuvwxyz12345");
+
+print_endline(atoj |> Node.stringOfResult);
