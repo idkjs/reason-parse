@@ -101,10 +101,9 @@ let between = (p, q, r) => keepNth(1, [p, q, r]);
 
 let successes = (~atLeast=0, stream, string) =>
   switch (tillFailure(stream, string)) {
-  | (list, _, EndOfStream(count))
-  | (list, _, ParseFailure(count, _)) =>
+  | (list, _, EndOfStream(_))
+  | (list, _, ParseFailure(_, _)) =>
     if (List.length(list) >= atLeast) {
-      print_endline(Format.sprintf("count: %d, atLeast: %d", count, atLeast));
       let (values, parseData) = List.split(list);
       Success(Lst(values |> List.rev), mergeParseData(string, parseData))
     } else {

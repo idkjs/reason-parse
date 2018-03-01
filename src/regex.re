@@ -5,15 +5,17 @@ let regex = (~group=0, re, s) => {
   switch resultOption {
   | None => Fail("Match not found -- exec failed.")
   | Some(result) =>
-    /* Js.log(Js_re.captures(result)); */
-    switch (Belt_Array.get(result |> Js_re.captures, group)) {
-    | None => Fail("Match not found -- captures array is empty.")
-    | Some(nullableString) =>
-      switch (nullableString |> Js.toOption) {
-      | None => Fail(Format.sprintf("Match not found -- captures[%d] is null.", group))
-      | Some(match) =>
+    let captures = result |> Js_re.captures;
+    switch (Belt_Array.get(captures, 0), Belt_Array.get(captures, group)) {
+    | (None, _) => Fail("Match not found -- captures array is empty.")
+    | (_, None) => Fail(Format.sprintf("Capture group %d is undefined.", group))
+    | (Some(nullableMatch), Some(nullableMatchGroup)) =>
+      switch (nullableMatch |> Js.toOption, nullableMatchGroup |> Js.toOption) {
+      | (None, _) => Fail("Match not found -- capture group 0 is null.")
+      | (_, None) => Fail(Format.sprintf("Match not found -- capture group %d is null.", group))
+      | (Some(match), Some(matchGroup)) =>
         Success(
-          Str(match),
+          Str(matchGroup),
           makeParseData(~match, ~rest=Js_string.sliceToEnd(~from=Js_string.length(match), s), ())
         )
       }
@@ -33,10 +35,24 @@ let letter = regex([%re "/[a-zA-Z]/"]);
 
 let letters = regex([%re "/[a-zA-Z]+/"]);
 
-let quotedString = regex(~group=1, [%re "/\"([^\"]*)\"/"]);
-
 let intMapper = (value) =>
   switch value {
   | Str(n) => Int(int_of_string(n))
   | _ as v => v
   };
+
+let floatMapper = (value) =>
+  switch value {
+  | Str(n) => Flt(float_of_string(n))
+  | _ as v => v
+  };
+
+let map = (~f=(x) => x, ~g=(x) => x, p, s) =>
+  switch (p(s)) {
+  | Fail(_) as x => x
+  | Success(value, parseData) => Success(f(value), g(parseData))
+  };
+
+let integer = map(~f=intMapper, digits);
+
+let float = regex([%re "/\\d+\\.\\d+/"]) |> map(~f=floatMapper);
