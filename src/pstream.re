@@ -75,6 +75,28 @@ let seq = (ps, s) =>
     Fail(Format.sprintf("Parser %d of %d failed: %s", count, List.length(ps), message))
   };
 
+let rec reduceWithIndexInternal = (f, init, i, list) =>
+  switch list {
+  | [] => init
+  | [x, ...rest] => reduceWithIndexInternal(f, f(init, x, i), i + 1, rest)
+  };
+
+let addRange = (list) => list |> List.mapi((i, a) => (i, a));
+
+let fold_lefti = (f, init, list) =>
+  List.fold_left((acc, i, a) => f(acc, (i, a)), init, addRange(list));
+
+let filteri = (predicate, list) =>
+  List.filter(((i, a)) => predicate(i, a), addRange(list)) |> List.map(snd);
+
+let keep = (indices, ps, s) =>
+  switch (seq(ps, s)) {
+  | Success(Lst(list), parseData) =>
+    let filteredList = filteri((i, _) => List.mem(i, indices), list);
+    Success(Lst(filteredList), parseData)
+  | _ as fail => fail
+  };
+
 let keepNth = (n, ps, s) =>
   switch (seq(ps, s)) {
   | Success(Lst(list), parseData) =>

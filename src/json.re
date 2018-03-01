@@ -4,17 +4,21 @@ open Pstream;
 
 open Node;
 
-let lBrace = regex([%re "/{/"]);
+let trim = (p) => between(maybeWhitespace, p, maybeWhitespace);
 
-let rBrace = regex([%re "/}/"]);
+let lBrace = trim(regex([%re "/{/"]));
 
-let lBrak = regex([%re "/\\[/"]);
+let rBrace = trim(regex([%re "/}/"]));
 
-let rBrak = regex([%re "/]/"]);
+let lBrak = trim(regex([%re "/\\[/"]));
 
-let colon = regex([%re "/:/"]);
+let rBrak = trim(regex([%re "/]/"]));
 
-let comma = regex([%re "/,/"]);
+let colon = trim(regex([%re "/:/"]));
+
+let comma = trim(regex([%re "/,/"]));
+
+let integer = map(~f=intMapper, digits);
 
 let quotedString = regex(~group=1, [%re "/\"([^\"]*)\"/"]);
 
@@ -24,7 +28,19 @@ let firstChar = (s) =>
   };
 
 let rec matchArray = (s) => between(lBrak, matchEntries, rBrak, s)
-and matchEntries = (s) => sepBy(~separator=comma, matchEntry, s)
-and matchEntry = (s) => alt([integer, quotedString, matchArray], s);
+and matchEntries = (s) => sepBy(~separator=comma, matchValue, s)
+and matchValue = (s) => alt([integer, quotedString, matchArray], s);
 
-print_endline({|[123,"a",[[3,"bcd"]],[5,6],"pqrst"]|} |> matchArray |> stringOfResult);
+print_endline(
+  {|
+
+  [
+    123, "a" ,
+ [
+   [
+   3,"bcd"]]   , [5,6],
+
+ "pqrst"]|}
+  |> matchArray
+  |> stringOfResult
+);
