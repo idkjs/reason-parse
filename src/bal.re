@@ -19,8 +19,3 @@ let rec stringOfPair = (pair) =>
   };
 
 print_endline("[[[]]]" |> bal |> stringOfPair);
-
-type arr = list(entry)
-and entry =
-  | Int(int)
-  | Arr(arr);
