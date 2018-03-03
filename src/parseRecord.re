@@ -1,5 +1,5 @@
 type parseRecord = {
   match: string,
-  remainder: string,
-  name: string
+  remainder: string
+  /* name: string */
 };

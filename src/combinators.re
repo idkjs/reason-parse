@@ -1,148 +1,117 @@
-type result_t =
-  | Chr(char)
-  | Str(string)
-  | Seq(list(result_t))
-  | Nothing;
+open ParseRecord;
 
-let rec stringOfResult = (result) =>
-  switch result {
-  | Chr(c) => "'" ++ Char.escaped(c) ++ "'"
-  | Str(s) => s
-  | Seq(resultList) =>
-    "["
-    ++ (List.map(stringOfResult, resultList) |> Array.of_list |> Js_array.joinWith(", "))
-    ++ "]"
-  | Nothing => "Nothing"
+let nextOpt = (stream) =>
+  try (Some(Stream.next(stream))) {
+  | Stream.Failure => None
   };
 
-type output_t =
-  | Success(result_t, string)
-  | Fail(string);
-
-let map = (f: result_t => result_t, p: string => output_t, s) =>
-  switch (p(s)) {
-  | Success(result, leftover) => Success(f(result), leftover)
-  | Fail(_) as x => x
-  };
-
-let stringOfOutput = (output) =>
-  switch output {
-  | Success(result, leftover) => "Result: " ++ stringOfResult(result) ++ ", Leftover: " ++ leftover
-  | Fail(message) => "Fail: " ++ message
-  };
-
-let succeedWith = (result, s) => Success(result, s);
-
-let fail = (message, _) => Fail(message);
-
-let satisfy = (f, s) =>
-  String.(
-    switch (length(s)) {
-    | 0 => Fail("Parsing empty string!")
-    | _ =>
-      f(s.[0]) ?
-        Success(Chr(s.[0]), sub(s, 1, length(s) - 1)) : Fail("s.[0] does not satisfy predicate.")
+let rec alt = (stream, string) =>
+  switch (nextOpt(stream)) {
+  | None => `Fail("None of the parsers matched")
+  | Some(p) =>
+    switch (p(string)) {
+    | `Success(_) as success => success
+    | `Fail(_) => alt(stream, string)
     }
+  };
+
+let rec tillFailure = (stream, string: string) =>
+  switch (nextOpt(stream)) {
+  | None => ([], None)
+  | Some(p) =>
+    switch (p(string)) {
+    | `Success(_, {remainder}) as success =>
+      let (successes, failOpt) = tillFailure(stream, remainder);
+      ([success, ...successes], failOpt)
+    | `Fail(_) as fail => ([], Some(fail))
+    }
+  };
+
+let rec mergeParseData = (initialString, list) =>
+  switch list {
+  | [] => {match: "", remainder: initialString}
+  | [x, ...y] => {...x, match: mergeParseData(initialString, y).match ++ x.match}
+  };
+
+let tillFailureMerged = (stream, string) => {
+  let (list, failOpt) = tillFailure(stream, string);
+  let (values, pRecs) = list |> List.map((`Success(value, pRec)) => (value, pRec)) |> List.split;
+  (values |> List.rev, mergeParseData(string, pRecs), failOpt)
+};
+
+let stream = (stream, string) =>
+  switch (tillFailureMerged(stream, string)) {
+  | (values, pRec, None) => `Success((`List(values), pRec))
+  | (_, _, Some(`Fail(errorList))) =>
+    `Fail([
+      Format.sprintf("Parser `Stream failure at parser index %d", stream |> Stream.count),
+      ...errorList
+    ])
+  };
+
+let seq = (ps) => stream(ps |> Stream.of_list);
+
+let appendRange = (list) => list |> List.mapi((i, a) => (i, a));
+
+let filteri = (predicate, list) =>
+  List.filter(((i, a)) => predicate(i, a), appendRange(list)) |> List.map(snd);
+
+let keep = (indices, ps, s) =>
+  switch (seq(ps, s)) {
+  | `Success(`List(list), pRec) =>
+    let filteredList = filteri((i, _) => List.mem(i, indices), list);
+    `Success((`List(filteredList), pRec))
+  | _ as fail => fail
+  };
+
+let keepNth = (n, ps) => keep([n], ps);
+
+let keepFirst = (ps) => keepNth(0, ps);
+
+let keepLast = (ps) => keepNth(List.length(ps) - 1, ps);
+
+let between = (p, q, r) => keepNth(1, [p, q, r]);
+
+let successes = (~atLeast=0, stream, string) => {
+  let (values, pRec, failOpt) = tillFailureMerged(stream, string);
+  let n = List.length(values);
+  switch failOpt {
+  | None => n >= atLeast ? `Success((`List(values), pRec)) : `Fail(["Stream ended too soon."])
+  | Some(`Fail(errorList)) =>
+    n >= atLeast ? `Success((`List(values), pRec)) : `Fail(["Parse failed too soon", ...errorList])
+  }
+};
+
+let _times = (~atLeast=0, ~atMost=?, parser) =>
+  successes(
+    ~atLeast,
+    Stream.from(
+      (n) =>
+        switch atMost {
+        | Some(x) =>
+          if (n < x) {
+            Some(parser)
+          } else {
+            None
+          }
+        | None => Some(parser)
+        }
+    )
   );
 
-let character = (a) => satisfy((===)(a));
+let zeroOrMore = (parser) => _times(~atLeast=0, parser);
 
-/* a regexp, whitespace, optwhitespace, any, takeWhile */
-let rec seq = (ps, s) =>
-  switch ps {
-  | [] => succeedWith(Seq([]), s)
-  | [p, ...qs] =>
-    switch (p(s)) {
-    | Fail(_) => Fail("One of the parsers in the sequence failed.")
-    | Success(pResult, pLeftover) =>
-      switch (seq(qs, pLeftover)) {
-      | Success(Seq(resultList), leftover) => Success(Seq([pResult, ...resultList]), leftover)
-      | _ => Fail("One of the parsers in the sequence failed.")
-      }
-    }
-  };
+let oneOrMore = (parser) => _times(~atLeast=1, parser);
 
-let (>>>) = (p, q) => seq([p, q]);
+let atLeast = (atLeast, parser) => _times(~atLeast, parser);
 
-let rec alt = (ps, s) =>
-  switch ps {
-  | [] => Fail("None of the parsers matched.")
-  | [p, ...qs] =>
-    switch (p(s)) {
-    | Success(_) as x => x
-    | Fail(_) => alt(qs, s)
-    }
-  };
+let atMost = (atMost) => _times(~atLeast=0, ~atMost);
 
-let (<|>) = (p, q) => alt([p, q]);
+let atLeastAtMost = (atLeast, atMost) => _times(~atLeast, ~atMost);
 
-/* between, followed by, not followed by, sepby, lazy, chain, fallback, skip, trim, wrap, times, atmost, atleast */
-let toCharList = (s) => s |> Js_string.split("") |> Js_array.map((t) => t.[0]) |> Array.to_list;
+let nTimes = (n) => atLeastAtMost(n, n);
 
-let charInString = (s) => s |> toCharList |> List.map(character) |> alt;
-
-let letter = charInString("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ");
-
-let digit = charInString("0123456789");
-
-let rec inclusiveRange = (m, n) =>
-  if (m < n) {
-    [m, ...inclusiveRange(m + 1, n)]
-  } else if (m > n) {
-    [m, ...inclusiveRange(m - 1, n)]
-  } else {
-    [m]
-  };
-
-let concatCharList = (charList) =>
-  charList |> List.map(Char.escaped) |> Array.of_list |> Js_array.joinWith("");
-
-let unwrapSeq = (result) =>
-  switch result {
-  | Seq(results) => results
-  | _ => assert false
-  };
-
-let unwrapChr = (result) =>
-  switch result {
-  | Chr(c) => c
-  | _ => assert false
-  };
-
-let wrapStr = (s) => Str(s);
-
-let thisString = (s) =>
-  s
-  |> toCharList
-  |> List.map(character)
-  |> seq
-  |> map((result) => result |> unwrapSeq |> List.map(unwrapChr) |> concatCharList |> wrapStr);
-
-let charInRange = (m, n) =>
-  inclusiveRange(m, n) |> List.map(Char.chr) |> List.map(character) |> alt;
-
-let rec times = (~results=[], ~atLeast=0, ~atMost, p, s) : output_t => {
-  /* atLeast and/or atMost should be optional!!! */
-  if (atLeast > atMost) {
-    Js.Exn.raiseError("atLeast > atMost??")
-  };
-  let count = List.length(results);
-  switch (p(s)) {
-  | Fail(_) =>
-    if (atLeast <= count && count <= atMost) {
-      Success(Seq(results), s)
-    } else if (count < atLeast) {
-      Fail("Didn't match enough times.")
-    } else {
-      Js.Exn.raiseError("count > atMost??")
-    }
-  | Success(result, leftover) =>
-    if (count < atMost) {
-      times(~results=[result, ...results], ~atLeast, ~atMost, p, leftover)
-    } else if (count === atMost) {
-      Fail("Matched too many times.")
-    } else {
-      Js.Exn.raiseError("count > atMost??")
-    }
-  }
+let sepBy = (~separator, parser, string) => {
+  let stream = Stream.from((n) => n === 0 ? Some(parser) : Some(keepLast([separator, parser])));
+  successes(~atLeast=0, stream, string)
 };
