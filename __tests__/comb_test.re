@@ -22,14 +22,40 @@ let compareResults = (x, y) =>
   | (`Fail(_), `Success(_)) => false
   };
 
+let comma = regExp([%re "/^,/"]);
+
 let lBrak = regExp([%re "/^\\[/"]);
 
 let rBrak = regExp([%re "/^\\]/"]);
+
+let trim = (p) => between(maybeWhitespace, p, maybeWhitespace);
+
+let trimStart = (p) => keepLast([maybeWhitespace, p]);
+
+let trimEnd = (p) => keepFirst([p, maybeWhitespace]);
 
 let () =
   describe(
     "Comb",
     () => {
+      test(
+        "alt",
+        () => {
+          let result = seq([alt([letters, digit]), alt([letters, digit])], "abcd123");
+          let correctResult = `Success((`List([`String("abcd"), `String("1")]), "23"));
+          expect(compareResults(result, correctResult)) |> toBe(true)
+        }
+      );
+      test(
+        "alt",
+        () => {
+          let result = many(~atLeast=1, alt([letters, digit]), "abcd123*");
+          result |> stringOfResult |> Js.log;
+          let correctResult =
+            `Success((`List([`String("abcd"), `String("1"), `String("2"), `String("3")]), "*"));
+          expect(compareResults(result, correctResult)) |> toBe(true)
+        }
+      );
       test(
         "atLeast",
         () => {
@@ -91,11 +117,69 @@ let () =
       test(
         "sepBy",
         () => {
-          let result = sepBy(~separator=regExp([%re "/^,/"]), digit, "0,1,1,2,35811");
-          stringOfResult(result) |> Js.log;
+          let result = sepBy(~separator=regExp([%re "/^,\\s*/"]), digit, "0, 1,  1, 2,35811");
           let correctResult =
             `Success((
               `List([`String("0"), `String("1"), `String("1"), `String("2"), `String("3")]),
+              "5811"
+            ));
+          expect(compareResults(result, correctResult)) |> toBe(true)
+        }
+      );
+      test(
+        "maybeWhiteSpace",
+        () => {
+          let result = maybeWhitespace("   abc");
+          let correctResult = `Success((`String("   "), "abc"));
+          expect(compareResults(result, correctResult)) |> toBe(true)
+        }
+      );
+      test(
+        "trim",
+        () => {
+          let result = trim(digits, "   0123     ");
+          let correctResult = `Success((`String("0123"), ""));
+          expect(compareResults(result, correctResult)) |> toBe(true)
+        }
+      );
+      test(
+        "sepBy, trimEnd",
+        () => {
+          let result = sepBy(~separator=trimEnd(regExp([%re "/^,/"])), digit, "0, 1,  1, 2,35811");
+          let correctResult =
+            `Success((
+              `List([`String("0"), `String("1"), `String("1"), `String("2"), `String("3")]),
+              "5811"
+            ));
+          expect(compareResults(result, correctResult)) |> toBe(true)
+        }
+      );
+      test(
+        "sepBy, trimStart",
+        () => {
+          let result =
+            sepBy(~separator=trimStart(regExp([%re "/^,/"])), digit, "0 ,1  ,1   ,2    ,35811");
+          let correctResult =
+            `Success((
+              `List([`String("0"), `String("1"), `String("1"), `String("2"), `String("3")]),
+              "5811"
+            ));
+          expect(compareResults(result, correctResult)) |> toBe(true)
+        }
+      );
+      test(
+        "betweenm, sepBy, trim",
+        () => {
+          let result =
+            between(
+              trim(lBrak),
+              sepBy(~separator=trim(comma), digits),
+              trim(rBrak),
+              " [  01 ,   12   ,  12    ,  23    , 34]   5811"
+            );
+          let correctResult =
+            `Success((
+              `List([`String("01"), `String("12"), `String("12"), `String("23"), `String("34")]),
               "5811"
             ));
           expect(compareResults(result, correctResult)) |> toBe(true)
