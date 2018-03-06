@@ -30,3 +30,18 @@ Error: This expression has type
 (Js_string.t) =>
 [> `Fail list(string)
  | `Success ([> `String Js_string.t ], ReasonParse.Values.parseRecord) ]
+
+[> `List list([> `Digit int | `Letter char ]) ]
+
+[ `List list([> `Digit int | `Letter char ]) ]
+
+[merlin]
+Error: This expression has type
+         (([> `Digit int | `Letter char | `List list('a) ] as 'a)) => string
+
+       but an expression was expected of type
+
+         ([ `List list([> `Digit int | `Letter char ]) ]) => string
+
+       The second variant type does not allow tag(s) `Digit, `Letter
+(([> `Digit int | `Letter char | `List list('a) ] as 'a)) => string

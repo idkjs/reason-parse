@@ -26,14 +26,28 @@ module Combinator = {
     };
   let rec tillFailure = (parserStream, charStream) =>
     switch (nextOpt(parserStream)) {
-    | None => ([], charStream, None)
+    | None => ([], Some(`StreamFailure), charStream)
     | Some(p) =>
       switch (p(charStream)) {
-      | `Fail(_) as fail => ([], charStream, Some(fail))
+      | `Fail(_) as fail => ([], Some(`ParseFailure(fail)), charStream)
       | `Success(value, restOfCharStream) =>
-        let (values, restOfRestOfCharStream, _) = tillFailure(parserStream, restOfCharStream);
-        ([value, ...values], restOfRestOfCharStream, None)
+        let (values, failure, restOfRestOfCharStream) =
+          tillFailure(parserStream, restOfCharStream);
+        ([value, ...values], failure, restOfRestOfCharStream)
       }
+    };
+  let tillFailureWrapped = (parserStream, charStream) =>
+    switch (tillFailure(parserStream, charStream)) {
+    | (successes, Some(failure), restOfCharStream) => (successes, failure, restOfCharStream)
+    | (_, None, _) => assert false
+    };
+  let stream = (parserStream, charStream) =>
+    switch (tillFailureWrapped(parserStream, charStream)) {
+    | (successes, `StreamFailure, restOfCharStream) =>
+      `Success((`List(successes), restOfCharStream))
+    | (_, `ParseFailure(`Fail(fail)), _) =>
+      let message = Format.sprintf("Parser %d failed: %s", Stream.count(parserStream), fail);
+      `Fail(message)
     };
 };
 
@@ -68,7 +82,7 @@ let digit = (stream) =>
       `Success((`Digit(int_of_string(c |> Char.escaped)), cs)) : `Fail("Not a digit.")
   };
 
-let p = Combinator.seq(letter, digit);
+let p = Combinator.stream([letter, digit, digit] |> Stream.of_list);
 
 (
   switch (p(['a', '0', 'b', '1'])) {
@@ -82,9 +96,8 @@ let p = Combinator.seq(letter, digit);
   }
 )
 |> print_endline;
-
 /* let q = Combinator.alt(letter, digit); */
-let q = Combinator.alt([letter, digit] |> Stream.of_list);
+/* let q = Combinator.alt([letter, digit] |> Stream.of_list); */
 /* (
      switch (q(['a', '0', 'b', '1'])) {
      | `Success(value, rest) =>

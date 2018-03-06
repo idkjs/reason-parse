@@ -3,8 +3,18 @@
   "version": "0.1.0",
   "refmt": 3,
   "sources": [
-    "src"
+    {
+      "dir": "src"
+    },
+    {
+      "dir": "__tests__",
+      "type": "dev"
+    }
   ],
-  "bs-dependencies": [],
+  "bs-dependencies": [
+    "@glennsl/bs-revamp",
+    "@glennsl/rebase",
+    "@glennsl/bs-jest"
+  ],
   "namespace": true
 }
