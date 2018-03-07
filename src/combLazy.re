@@ -1,10 +1,5 @@
 open LazyList;
 
-let nextOpt = (stream) =>
-  try (Some(Stream.next(stream))) {
-  | Stream.Failure => None
-  };
-
 let rec alt = (parsers, charStream) =>
   switch parsers {
   | Nil => `Fail("None of the parsers matched.")
@@ -92,11 +87,7 @@ let between = (p, q, r) => keepNth(1, [p, q, r] |> toLazy);
 
 let sepBy = (~separator, parser, string) =>
   /* let stream = Stream.from((n) => n === 0 ? Some(parser) : Some(keepLast([separator, parser]))); */
-  atLeast(
-    0,
-    Cons(parser, () => const(keepLast([separator, parser]))),
-    string
-  );
+  atLeast(0, Cons(parser, () => const(keepLast([separator, parser]))), string);
 
 let stringOfStringList = (lst) => "[" ++ (lst |> Array.of_list |> Js_array.joinWith(", ")) ++ "]";
 
