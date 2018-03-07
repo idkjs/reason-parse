@@ -167,7 +167,7 @@ let () =
         }
       );
       test(
-        "betweenm, sepBy, trim",
+        "between, sepBy, trim",
         () => {
           let result =
             between(

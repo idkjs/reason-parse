@@ -19,3 +19,14 @@ let keepLast = CombLazy.keepLast;
 let between = CombLazy.between;
 
 let sepBy = CombLazy.sepBy;
+
+let keyVal = (~separator, p, q, s) =>
+  switch (seq([p, separator, q], s)) {
+  | `Success(`List([k, _, v]), remainder) => `Success((`Pair((k, v)), remainder))
+  /* switch values {
+     | [k, v] => `Success((`Pair((k, v)), remainder))
+     | _ => assert false
+     } */
+  | `Fail(_) as fail => fail
+  | _ => assert false
+  };
