@@ -12,10 +12,8 @@ let letter = (s: string) => regExp([%re "/^[A-Za-z]/"], s);
 
 let letters = (s: string) => regExp([%re "/^[A-Za-z]+/"], s);
 
-/* let qq = atLeast(4, letter, "abcd123") |> stringOfResult |> Js.log; */
 let digit = (s: string) => regExp([%re "/^[0-9]/"], s);
 
 let digits = (s: string) => regExp([%re "/^[0-9]+/"], s);
 
 let maybeWhitespace = (s: string) => regExp([%re "/^\\s*/"], s);
-/* "aaabcd" |> regExp([%re "/^a+/"]) |> stringOfResult |> Js.log; */

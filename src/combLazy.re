@@ -36,7 +36,6 @@ let seq = (parsers, charStream) =>
     `Fail(message)
   };
 
-/* let seq = (parsers) => stream(parsers |> Stream.of_list); */
 let atLeast = (n, parsers, charStream) => {
   let (successes, failure, restOfCharStream) = tillFailureWrapped(parsers, charStream);
   switch failure {
@@ -86,9 +85,9 @@ let keepLast = (ps) => keepNth(List.length(ps) - 1, ps |> toLazy);
 let between = (p, q, r) => keepNth(1, [p, q, r] |> toLazy);
 
 let sepBy = (~separator, parser, string) =>
-  /* let stream = Stream.from((n) => n === 0 ? Some(parser) : Some(keepLast([separator, parser]))); */
   atLeast(0, Cons(parser, () => const(keepLast([separator, parser]))), string);
 
+/* The following aren't combinators and should be moved. */
 let stringOfStringList = (lst) => "[" ++ (lst |> Array.of_list |> Js_array.joinWith(", ")) ++ "]";
 
 let stringOfCharList = (lst) => lst |> List.map(Char.escaped) |> stringOfStringList;

@@ -1,4 +1,4 @@
-open Comb;
+open CombEager;
 
 open RegExp;
 
@@ -49,8 +49,7 @@ let () =
       test(
         "alt",
         () => {
-          let result = many(~atLeast=1, alt([letters, digit]), "abcd123*");
-          result |> stringOfResult |> Js.log;
+          let result = many(~min=1, alt([letters, digit]), "abcd123*");
           let correctResult =
             `Success((`List([`String("abcd"), `String("1"), `String("2"), `String("3")]), "*"));
           expect(compareResults(result, correctResult)) |> toBe(true)
@@ -59,7 +58,7 @@ let () =
       test(
         "atLeast",
         () => {
-          let result = many(~atLeast=4, letter, "abcd123");
+          let result = many(~min=4, letter, "abcd123");
           let correctResult =
             `Success((`List([`String("a"), `String("b"), `String("c"), `String("d")]), "123"));
           expect(compareResults(result, correctResult)) |> toBe(true)

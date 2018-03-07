@@ -56,7 +56,6 @@ let () =
         "alt",
         () => {
           let result = many(~min=1, alt([letters, digit] |> toLazy), "abcd123*");
-          result |> stringOfResult |> Js.log;
           let correctResult =
             `Success((`List([`String("abcd"), `String("1"), `String("2"), `String("3")]), "*"));
           expect(compareResults(result, correctResult)) |> toBe(true)

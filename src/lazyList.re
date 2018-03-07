@@ -38,10 +38,7 @@ let rec toList = (n, llst) =>
   | Cons(a, f) => n > 0 ? [a, ...toList(n - 1, f())] : []
   };
 
-posInts(5) |> toList(20) |> Array.of_list |> Js.log;
-
+/* posInts(5) |> toList(20) |> Array.of_list |> Js.log; */
 let ll = 3 @@ 2 @@ 1 @@ 0 @@ posInts(1);
-
-ll |> toList(5) |> Array.of_list |> Js.log;
-
-fromList([2, 4, 6, 8]) |> toList(5) |> Array.of_list |> Js.log;
+/* ll |> toList(5) |> Array.of_list |> Js.log; */
+/* fromList([2, 4, 6, 8]) |> toList(5) |> Array.of_list |> Js.log; */
